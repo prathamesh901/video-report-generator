@@ -122,7 +122,7 @@ if __name__ == "__main__":
     from pymongo import MongoClient
     
     def get_video_metadata(video_hash: str):
-        client = MongoClient("mongodb+srv://prathameshhh902:Bvit@2002@cluster0.mongodb.net/?retryWrites=true&w=majority")
+        client = MongoClient("mongodb+srv://prathameshhh902:Bvit%402002@cluster0.mongodb.net/?retryWrites=true&w=majority")
         db = client['videoDB']
         collection = db['video_processing']
         query = {"video_hash": video_hash}
