@@ -3,7 +3,8 @@ from flask_cors import CORS  # Import CORS
 from pymongo import MongoClient
 from io import BytesIO
 import zipfile
-from mongo_pdf_finall import create_document  # Import your function
+from mongo_pdf_finall import create_document 
+import os # Import your function
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -44,5 +45,8 @@ def download_report(video_hash):
         print(f"Error: {e}")  # Print error in terminal for debugging
         return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # Get Render's dynamic port
+    app.run(host="0.0.0.0", port=port, debug=True)
+
