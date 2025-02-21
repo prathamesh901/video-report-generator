@@ -15,30 +15,40 @@ def home():
     """Serve the main page with the download button."""
     return render_template("index.html")
 
-@app.route("/download", methods=["GET"])
-def download_report():
-    """Fetch the latest video metadata and generate a report."""
+def generate_report():
+    """Fetch the latest video metadata and generate Word & PDF reports."""
     video_data = collection.find_one(sort=[("upload_timestamp", -1)])
 
     if not video_data:
-        return {"error": "No video data found"}, 404
+        return None, None
 
-    # Generate Word & PDF documents
     word_blob, pdf_blob = create_document(video_data)
 
-    # Save files
     word_path = "Video_Report.docx"
     pdf_path = "Video_Report.pdf"
+
     with open(word_path, "wb") as f:
         f.write(word_blob)
     with open(pdf_path, "wb") as f:
         f.write(pdf_blob)
 
-    # Zip both files
-    zip_path = "Video_Report.zip"
-    os.system(f"zip -r {zip_path} {word_path} {pdf_path}")
+    return word_path, pdf_path
 
-    return send_file(zip_path, as_attachment=True)
+@app.route("/download_word", methods=["GET"])
+def download_word():
+    """Serve the Word document."""
+    word_path, _ = generate_report()
+    if not word_path:
+        return {"error": "No video data found"}, 404
+    return send_file(word_path, as_attachment=True)
+
+@app.route("/download_pdf", methods=["GET"])
+def download_pdf():
+    """Serve the PDF document."""
+    _, pdf_path = generate_report()
+    if not pdf_path:
+        return {"error": "No video data found"}, 404
+    return send_file(pdf_path, as_attachment=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
