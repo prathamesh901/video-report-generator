@@ -10,7 +10,8 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # Connect to MongoDB
-client = MongoClient('mongodb://localhost:27017/')
+client = MongoClient("mongodb+srv://prathameshhh902:Bvit@2002@cluster0.mongodb.net/?retryWrites=true&w=majority")
+
 db = client['videoDB']
 collection = db['video_processing']
 
