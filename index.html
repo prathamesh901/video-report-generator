@@ -1,0 +1,19 @@
+<button onclick="downloadReport()">Download New Report</button>
+
+<script>
+function downloadReport() {
+    const videoHash = "ecd71914b736e3664412b10dd127c3447156d2f539181016a90b97cf27fa4e6f"; // New video hash
+
+    fetch(`http://127.0.0.1:5000/download/${videoHash}`)
+    .then(response => response.blob())
+    .then(blob => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = "Steve_Ciccone_Video_Report.zip"; 
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    })
+    .catch(error => console.error('Error downloading:', error));
+}
+</script>
