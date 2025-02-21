@@ -6,7 +6,7 @@ import os
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
 # MongoDB connection
-client = MongoClient("mongodb+srv://your_username:your_password@cluster0.mongodb.net/")
+client = MongoClient("mongodb+srv://prathameshhh902:Bvit%402002@cluster0.q2fnv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client['videoDB']
 collection = db['video_processing']
 
