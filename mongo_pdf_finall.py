@@ -1,3 +1,4 @@
+import os
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from datetime import datetime
@@ -5,6 +6,7 @@ from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from pymongo import MongoClient
 
 def create_document(data):
     # === Word Document Creation ===
@@ -12,135 +14,104 @@ def create_document(data):
     title = doc.add_heading('Video Analysis Report', 0)
     title.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     
-    # Project Information Section
-    doc.add_heading('Project Information', level=1)
-    doc.add_paragraph(f"Project ID: {data.get('project_id', 'Not available')}")
-    doc.add_paragraph(f"Project Name: {data.get('project_name', 'Not available')}")
-    doc.add_paragraph(f"Privacy: {data.get('privacy', 'Not available')}")
+    # === PDF Creation ===
+    pdf_buffer = BytesIO()
+    pdf_doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    pdf_content = [Paragraph('Video Analysis Report', styles['Title']), Spacer(1, 12)]
+    
+    def add_section(heading, text):
+        """Helper function to add sections to both Word and PDF."""
+        doc.add_heading(heading, level=1)
+        doc.add_paragraph(text)
+        pdf_content.append(Paragraph(heading, styles['Heading1']))
+        pdf_content.append(Paragraph(text, styles['Normal']))
+        pdf_content.append(Spacer(1, 12))
+    
+    # Project Information
+    add_section('Project Information', f"Project ID: {data.get('project_id', 'Not available')}")
+    add_section('Project Name', f"{data.get('project_name', 'Not available')}")
+    add_section('Privacy', f"{data.get('privacy', 'Not available')}")
     upload_time = data.get('upload_timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    doc.add_paragraph(f"Upload Timestamp: {upload_time}")
-    doc.add_paragraph(f"Video Status: {data.get('video_upload_status', 'Not available')}")
+    add_section('Upload Timestamp', upload_time)
+    add_section('Video Status', f"{data.get('video_upload_status', 'Not available')}")
     
-    # Video Metadata Section
-    doc.add_heading('Video Metadata', level=1)
-    doc.add_paragraph(f"File Name: {data.get('original_filename', 'Not available')}")
-    doc.add_paragraph(f"Video Hash: {data.get('video_hash', 'Not available')}")
-    
+    # Video Metadata
     metadata = data.get('metadata', {})
+    add_section('File Name', f"{data.get('original_filename', 'Not available')}")
+    add_section('Video Hash', f"{data.get('video_hash', 'Not available')}")
     if metadata:
-        doc.add_paragraph(f"File Type: {metadata.get('file_type', 'Not available')}")
-        doc.add_paragraph(f"File Size: {metadata.get('file_size_MB', 'Not available')} MB")
-        doc.add_paragraph(f"Duration: {metadata.get('duration_sec', 'Not available')} seconds")
-        doc.add_paragraph(f"Frame Rate: {metadata.get('frame_rate', 'Not available')} fps")
-        doc.add_paragraph(f"Resolution: {metadata.get('video_resolution', 'Not available')}")
-        
+        add_section('File Type', f"{metadata.get('file_type', 'Not available')}")
+        add_section('File Size', f"{metadata.get('file_size_MB', 'Not available')} MB")
+        add_section('Duration', f"{metadata.get('duration_sec', 'Not available')} seconds")
+        add_section('Frame Rate', f"{metadata.get('frame_rate', 'Not available')} fps")
+        add_section('Resolution', f"{metadata.get('video_resolution', 'Not available')}")
+    
+        # Transcription
         if 'transcription_with_timestamps' in metadata:
             doc.add_heading('Transcription', level=1)
+            pdf_content.append(Paragraph('Transcription', styles['Heading1']))
             for entry in metadata.get('transcription_with_timestamps', []):
-                p = doc.add_paragraph()
-                p.add_run(f"[{entry.get('start_time', 0):.2f} - {entry.get('end_time', 0):.2f}] ").bold = True
-                p.add_run(f"{entry.get('speaker', 'Unknown')}: {entry.get('text', 'No text')}")
-        
-        if 'summary' in metadata:
-            doc.add_heading('Summary', level=1)
-            doc.add_paragraph(metadata.get('summary', 'No summary available'))
-        
-        if 'keywords_and_topics' in metadata:
-            doc.add_heading('Keywords and Topics', level=1)
-            kt = metadata['keywords_and_topics']
-            doc.add_paragraph(f"Keywords: {', '.join(kt.get('keywords', ['None']))}")
-            doc.add_paragraph(f"Topics: {', '.join(kt.get('topics', ['None']))}")
-        
-        if 'brands_and_locations' in metadata:
-            doc.add_heading('Brands and Locations', level=1)
-            bl = metadata['brands_and_locations']
-            doc.add_paragraph(f"Brands: {', '.join(bl.get('brands', ['None']))}")
-            doc.add_paragraph(f"Locations: {', '.join(bl.get('locations', ['None']))}")
-        
-        if 'sentiment' in metadata:
-            doc.add_heading('Sentiment', level=1)
-            doc.add_paragraph(metadata.get('sentiment', 'Not analyzed'))
-        
-        if 'people' in metadata:
-            doc.add_heading('People', level=1)
-            for person in metadata.get('people', []):
-                doc.add_paragraph(f"Name: {person.get('name', 'Unknown')}")
-                doc.add_paragraph(f"Designation: {person.get('designation', 'Not specified')}")
-        
-        if 'objects' in metadata:
-            doc.add_heading('Objects', level=1)
-            objects_list = metadata.get('objects', [])
-            objects_text = ", ".join(objects_list) if isinstance(objects_list, list) else "No objects detected"
-            doc.add_paragraph(objects_text)
-        
-        if 'ai_voice_location' in metadata:
-            doc.add_heading('AI Voice Location', level=1)
-            doc.add_paragraph(metadata.get('ai_voice_location', 'Not available'))
-
-    # Footer
-    section = doc.sections[0]
-    footer = section.footer
-    footer_para = footer.paragraphs[0]
-    footer_para.text = f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    footer_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                text = f"[{entry.get('start_time', 0):.2f} - {entry.get('end_time', 0):.2f}] {entry.get('speaker', 'Unknown')}: {entry.get('text', 'No text')}"
+                doc.add_paragraph(text)
+                pdf_content.append(Paragraph(text, styles['Normal']))
+            pdf_content.append(Spacer(1, 12))
     
-    # Generate Word blob
+        # Other Metadata Sections
+        for key in ['summary', 'keywords_and_topics', 'brands_and_locations', 'sentiment', 'people', 'objects', 'ai_voice_location']:
+            value = metadata.get(key, 'Not available')
+            if isinstance(value, dict):
+                text = ', '.join(value.get('keywords', []) + value.get('topics', [])) if key == 'keywords_and_topics' else ', '.join(value.get('brands', []) + value.get('locations', []))
+            elif isinstance(value, list):
+                text = '\n'.join([f"{p.get('name', 'Unknown')} - {p.get('designation', 'Not specified')}" for p in value]) if key == 'people' else ', '.join(value)
+            else:
+                text = value
+            add_section(key.replace('_', ' ').title(), text)
+    
+    # Footer
+    timestamp = f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    pdf_content.append(Spacer(1, 36))
+    pdf_content.append(Paragraph(timestamp, styles['Normal']))
+    doc.sections[0].footer.paragraphs[0].text = timestamp
+    doc.sections[0].footer.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    
+    # Save Word Document as Blob
     word_buffer = BytesIO()
     doc.save(word_buffer)
     word_blob = word_buffer.getvalue()
     word_buffer.close()
     
-    # === PDF Creation ===
-    pdf_buffer = BytesIO()
-    pdf_doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    
-    content = []
-    content.append(Paragraph('Video Analysis Report', styles['Title']))
-    content.append(Spacer(1, 12))
-    
-    content.append(Paragraph('Objects', styles['Heading1']))
-    objects_text = ", ".join(objects_list) if isinstance(objects_list, list) else "No objects detected"
-    content.append(Paragraph(objects_text, styles['Normal']))
-    
-    # Add footer to PDF
-    content.append(Spacer(1, 36))
-    content.append(Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-    
     # Build PDF
-    pdf_doc.build(content)
+    pdf_doc.build(pdf_content)
     pdf_blob = pdf_buffer.getvalue()
     pdf_buffer.close()
     
     return word_blob, pdf_blob
 
-def main(result):
-    word_blob, pdf_blob = create_document(result)
-    return word_blob, pdf_blob
+def get_video_metadata(video_hash: str):
+    mongo_uri = os.getenv("MONGO_URI")
+    client = MongoClient(mongo_uri)
+    db = client['videoDB']
+    collection = db['video_processing']
+    video_data = collection.find_one({"video_hash": video_hash})
+    client.close()
+    return video_data if video_data else None
+
+def main(video_hash):
+    result = get_video_metadata(video_hash)
+    if result:
+        return create_document(result)
+    else:
+        print("No metadata found for the given video hash")
+        return None, None
 
 if __name__ == "__main__":
-    from pymongo import MongoClient
-    
-    def get_video_metadata(video_hash: str):
-        client = MongoClient("mongodb+srv://prathameshhh902:Bvit%402002@cluster0.q2fnv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-        db = client['videoDB']
-        collection = db['video_processing']
-        query = {"video_hash": video_hash}
-        video_data = collection.find_one(query)
-        client.close()
-        return video_data if video_data else None
-    
     sample_hash = "ecd71914b736e3664412b10dd127c3447156d2f539181016a90b97cf27fa4e6f"
-    result = get_video_metadata(sample_hash)
-    if result:
-        word_blob, pdf_blob = main(result)
-        print(f"Word document blob size: {len(word_blob)} bytes")
-        print(f"PDF document blob size: {len(pdf_blob)} bytes")
-        
-        # Optional: Save blobs to verify contents
+    word_blob, pdf_blob = main(sample_hash)
+    if word_blob and pdf_blob:
+        print(f"Word document size: {len(word_blob)} bytes")
+        print(f"PDF document size: {len(pdf_blob)} bytes")
         with open("test_output.docx", "wb") as f:
             f.write(word_blob)
         with open("test_output.pdf", "wb") as f:
             f.write(pdf_blob)
-    else:
-        print("No metadata found for the given video hash")
