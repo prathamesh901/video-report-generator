@@ -56,5 +56,9 @@ def generate_pdf_report(data):
     """Simulated function to generate a PDF file (Replace with actual logic)"""
     return b"Dummy PDF content"
 
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Use PORT from Render, default to 5000
+    app.run(host="0.0.0.0", port=port, debug=True)
+
