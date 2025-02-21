@@ -1,64 +1,44 @@
-from flask import Flask, jsonify, send_file
+from flask import Flask, send_file, render_template
 from pymongo import MongoClient
+from mongo_pdf_finall import create_document
 import os
-import zipfile
-from io import BytesIO
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# Connect to MongoDB
+# MongoDB connection
 client = MongoClient("mongodb+srv://prathameshhh902:Bvit%402002@cluster0.q2fnv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-db = client["videoDB"]  # Make sure your database name is correct
-collection = db["video_processing"]  # Collection name
+db = client['videoDB']
+collection = db['video_processing']
 
-@app.route('/')
+@app.route("/")
 def home():
-    return """
-        <h2>✅ Video Report Generator</h2>
-        <button onclick="window.location.href='/download-latest'">Download Latest Report</button>
-    """
+    """Serve the main page with the download button."""
+    return render_template("index.html")
 
-@app.route('/download-latest')
-def download_latest():
-    """Finds the latest video hash and downloads the report"""
-    latest_video = collection.find_one({}, sort=[("_id", -1)])  # Get the most recent video
-    if not latest_video:
-        return jsonify({"error": "No video metadata found"}), 404
+@app.route("/download", methods=["GET"])
+def download_report():
+    """Fetch the latest video metadata and generate a report."""
+    video_data = collection.find_one(sort=[("upload_timestamp", -1)])
 
-    video_hash = latest_video["video_hash"]
-    return download_report(video_hash)
-
-@app.route('/download/<video_hash>')
-def download_report(video_hash):
-    """Fetches and downloads the report for a given video hash"""
-    video_data = collection.find_one({"video_hash": video_hash})
     if not video_data:
-        return jsonify({"error": "No metadata found"}), 404
+        return {"error": "No video data found"}, 404
 
-    # Generate the reports (Replace this with your actual function)
-    word_blob = generate_word_report(video_data)
-    pdf_blob = generate_pdf_report(video_data)
+    # Generate Word & PDF documents
+    word_blob, pdf_blob = create_document(video_data)
 
-    # Create a ZIP file in memory
-    zip_buffer = BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        zip_file.writestr("Video_Report.docx", word_blob)
-        zip_file.writestr("Video_Report.pdf", pdf_blob)
+    # Save files
+    word_path = "Video_Report.docx"
+    pdf_path = "Video_Report.pdf"
+    with open(word_path, "wb") as f:
+        f.write(word_blob)
+    with open(pdf_path, "wb") as f:
+        f.write(pdf_blob)
 
-    zip_buffer.seek(0)
-    return send_file(zip_buffer, mimetype="application/zip", as_attachment=True, download_name="Video_Report.zip")
+    # Zip both files
+    zip_path = "Video_Report.zip"
+    os.system(f"zip -r {zip_path} {word_path} {pdf_path}")
 
-def generate_word_report(data):
-    """Simulated function to generate a Word file (Replace with actual logic)"""
-    return b"Dummy Word content"
+    return send_file(zip_path, as_attachment=True)
 
-def generate_pdf_report(data):
-    """Simulated function to generate a PDF file (Replace with actual logic)"""
-    return b"Dummy PDF content"
-
-
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # Use PORT from Render, default to 5000
-    app.run(host="0.0.0.0", port=port, debug=True)
-
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Report Generator</title>
+</head>
+<body>
+    <h1>Download Video Report</h1>
+    <button onclick="downloadReport()">Download</button>
+
+    <script>
+        function downloadReport() {
+            fetch("/download")
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Failed to download file");
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    let a = document.createElement("a");
+                    a.href = window.URL.createObjectURL(blob);
+                    a.download = "Video_Report.zip";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                })
+                .catch(error => console.error("Error downloading:", error));
+        }
+    </script>
+</body>
+</html>
